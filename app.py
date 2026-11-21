@@ -18,8 +18,58 @@ def br(value, decimals=0):
 
 
 st.set_page_config(page_title="Goiás | Inteligência Fiscal", layout="wide")
-st.title("Inteligência Fiscal de Goiás")
-st.caption("Repasses municipais de ICMS e frota de veículos")
+st.markdown("""
+<style>
+.stApp {background:radial-gradient(ellipse at 12% 0%,#133645 0%,#0b1e2d 46%,#081321 100%);}
+[data-testid="stSidebar"] {background:#0c2130;border-right:1px solid #245268;}
+.block-container {max-width:1440px;padding-top:1.3rem;}
+.fiscal-hero {border:1px solid #326575;border-radius:22px;padding:24px 30px;margin-bottom:24px;
+ background:linear-gradient(110deg,#103f43,#102d47 65%,#19304b);
+ box-shadow:0 16px 40px #0005;animation:appear .8s ease-out both;}
+.fiscal-brand {display:flex;gap:22px;align-items:center;flex-wrap:wrap;}
+.fiscal-flags {display:flex;gap:13px;align-items:center;}
+.fiscal-flag {width:86px;height:58px;display:block;border-radius:5px;overflow:hidden;
+ box-shadow:0 7px 20px #0008;transform-origin:10% 50%;
+ animation:wave 4.2s ease-in-out infinite;}
+.fiscal-flag.go {animation-delay:-1.9s;}
+.fiscal-hero h1 {font-weight:800;color:#fff;margin:3px 0;font-size:clamp(1.4rem,3vw,2.3rem);}
+.fiscal-hero p {margin:0;color:#c1dde0;}
+.fiscal-kicker {font-size:.72rem;letter-spacing:.16em;color:#8aecc2;font-weight:800;}
+[data-testid="stMetric"] {background:#123042;border:1px solid #2b5869;border-radius:16px;
+ padding:17px 20px;box-shadow:0 8px 24px #0002;transition:transform .25s,border-color .25s;animation:appear .65s both;}
+[data-testid="stMetric"]:hover {transform:translateY(-4px);border-color:#36b7a4;}
+[data-testid="stMetricValue"] {color:#e8fbfa;}
+div[data-testid="stTabs"] button[aria-selected="true"] {color:#69e3c4;}
+@keyframes wave {0%,100%{transform:perspective(260px) rotateY(-8deg) skewY(0deg)}
+ 50%{transform:perspective(260px) rotateY(9deg) skewY(-2deg)}}
+@keyframes appear {from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:650px){.fiscal-hero{padding:20px}.fiscal-flag{width:62px;height:43px}}
+@media(prefers-reduced-motion:reduce){.fiscal-flag,.fiscal-hero,[data-testid="stMetric"]{animation:none!important;transition:none!important}}
+</style>
+<div class="fiscal-hero">
+  <div class="fiscal-brand">
+    <div class="fiscal-flags">
+      <svg class="fiscal-flag" viewBox="0 0 100 70" role="img" aria-label="Bandeira do Brasil">
+        <rect width="100" height="70" fill="#159447"/>
+        <path d="M50 7L94 35 50 63 6 35Z" fill="#f8da28"/>
+        <circle cx="50" cy="35" r="20" fill="#194d92"/>
+        <path d="M31 31 Q50 23 69 34" stroke="#fff" stroke-width="5" fill="none"/>
+        <g fill="#fff"><circle cx="50" cy="38" r="1.5"/><circle cx="60" cy="42" r="1.3"/><circle cx="42" cy="45" r="1.1"/><circle cx="54" cy="47" r="1.1"/></g>
+      </svg>
+      <svg class="fiscal-flag go" viewBox="0 0 100 70" role="img" aria-label="Bandeira de Goiás">
+        <rect width="100" height="70" fill="#07864a"/>
+        <path d="M0 9H100V18H0ZM0 27H100V36H0ZM0 45H100V54H0ZM0 63H100V70H0Z" fill="#ffde28"/>
+        <rect width="39" height="36" fill="#2059a6"/>
+        <g fill="#fff"><circle cx="12" cy="11" r="2"/><circle cx="26" cy="11" r="2"/><circle cx="19" cy="18" r="2"/><circle cx="12" cy="25" r="2"/><circle cx="26" cy="25" r="2"/></g>
+      </svg>
+    </div>
+    <div><div class="fiscal-kicker">BRASIL · ESTADO DE GOIÁS</div>
+      <h1>Inteligência Fiscal de Goiás</h1>
+      <p>Repasses municipais de ICMS, frota e análise estatística · Dados públicos</p>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 published = os.environ.get("FISCAL_PUBLICADO") == "1"
 if published:
@@ -75,7 +125,9 @@ with overview:
     indicator = st.radio("Indicador dos gráficos", ["icms", "frota"], format_func=LABELS.get, horizontal=True)
     st.subheader("Municípios com os maiores valores")
     ranking = selected.nlargest(15, indicator).sort_values(indicator)
-    st.plotly_chart(px.bar(ranking, x=indicator, y="municipio", orientation="h", labels=LABELS))
+    fig_rank = px.bar(ranking, x=indicator, y="municipio", orientation="h", labels=LABELS, color_discrete_sequence=["#38bfa8"])
+    fig_rank.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=8,r=12,t=16,b=20))
+    st.plotly_chart(fig_rank, use_container_width=True)
     st.subheader("Série mensal")
     monthly = history.groupby("periodo", as_index=False).agg(
         icms=("icms", "sum"), frota=("frota", "sum"), municipios=("municipio", "size")
@@ -83,8 +135,11 @@ with overview:
     monthly = pd.DataFrame({"periodo": pd.period_range(periods[-1], periods[0], freq="M").astype(str)}).merge(
         monthly, on="periodo", how="left"
     )
-    st.plotly_chart(px.line(monthly, x="periodo", y=indicator, markers=True, labels=LABELS,
-                            hover_data={"municipios": True}, title=LABELS[indicator]))
+    fig_month = px.line(monthly, x="periodo", y=indicator, markers=True, labels=LABELS,
+                            hover_data={"municipios": True}, title=LABELS[indicator])
+    fig_month.update_traces(line_color="#35cdb5", line_width=3)
+    fig_month.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig_month, use_container_width=True)
     st.caption("Cada ponto soma os municípios disponíveis no recorte. Meses sem importação aparecem como lacunas.")
 
 with analysis:
@@ -104,7 +159,8 @@ with analysis:
         endpoints = [result["x_min"], result["x_max"]]
         chart.add_scatter(x=endpoints, y=[predict(result, x) for x in endpoints], mode="lines",
                           name="Reta OLS", line={"color": "#f6ad55", "width": 3})
-        st.plotly_chart(chart)
+        chart.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        st.plotly_chart(chart, use_container_width=True)
         slope = result["inclinacao"]
         sign = "+" if slope >= 0 else "−"
         st.write(f"Ŷ = {br(result['intercepto'], 2)} {sign} {br(abs(slope), 4)} × X")
