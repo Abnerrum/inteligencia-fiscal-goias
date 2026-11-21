@@ -1,0 +1,8 @@
+﻿Arquivos oficiais usados no ETL
+
+- Repasses de ICMS: ZIP anual, pasta repasses2025 ou icms_AAAAMM.csv/.xlsx.
+- Frota: frota_AAAAMM.csv/.xlsx, obtida no portal do DETRAN-GO.
+- Catálogo municipal: municipios_go.json, fornecido pelo IBGE.
+
+Os dois arquivos de indicadores devem representar a mesma competência.
+Consulte o README.md para obter os links, campos aceitos e comandos.
