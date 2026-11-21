@@ -1,4 +1,4 @@
-﻿# Inteligência Fiscal e Socioeconômica com Dados Abertos de Goiás
+# Inteligência Fiscal e Socioeconômica com Dados Abertos de Goiás
 
 **Relatório técnico executivo · Business Intelligence · SENAI FATESG**
 
@@ -8,7 +8,7 @@
 
 ## Resumo executivo
 
-O projeto cruza os repasses brutos de ICMS e a frota registrada de Goiás por município e mês. A entrega integra **1.722 registros**, cobrindo os **246 municípios goianos** em sete competências de janeiro a julho de 2025. Em julho, a correlação de Pearson foi **0,930**, uma associação linear positiva forte. A regressão simples apresentou **R² de 0,864**, com erro absoluto médio de aproximadamente **R$ 1,13 milhão por município** no ajuste. O painel permite reproduzir a análise, consultar os registros e simular estimativas.
+O projeto cruza os repasses brutos de ICMS e a frota registrada de Goiás por município e mês. A entrega integra **2.952 registros**, cobrindo os **246 municípios goianos** em 12 competências de janeiro a dezembro de 2025. Em julho, a correlação de Pearson foi **0,930**, uma associação linear positiva forte. A regressão simples apresentou **R² de 0,864**, com erro absoluto médio de aproximadamente **R$ 1,13 milhão por município** no ajuste. O painel permite reproduzir a análise, consultar os registros e simular estimativas.
 
 ## 1. Problema e objetivos
 
@@ -20,18 +20,18 @@ Os objetivos são comparar os municípios, acompanhar o comportamento mensal dos
 
 | Fonte | Dados usados | Abrangência na entrega |
 | --- | --- | --- |
-| [Economia de Goiás — Repasses](https://dadosabertos.go.gov.br/dataset/repasses) | Eventos de repasse mensal e o campo de ICMS bruto | Janeiro a julho de 2025 |
-| [DETRAN-GO — Frota de Veículos](https://dadosabertos.go.gov.br/dataset/frota-de-veiculos) | Soma de `QTD` para as situações ativa e inativa publicadas | Janeiro a julho de 2025 |
+| [Economia de Goiás — Repasse aos Municípios](https://goias.gov.br/economia/repasse-aos-municipios/) | Planilha de conciliação de 2025, aba Agregado, coluna ICMS | Janeiro a dezembro de 2025 |
+| [DETRAN-GO — Frota de Veículos](https://dadosabertos.go.gov.br/dataset/frota-de-veiculos) | Soma de `QTD` para as situações ativa e inativa publicadas | Janeiro a dezembro de 2025 |
 | [IBGE — Municípios de Goiás](https://servicodados.ibge.gov.br/api/v1/localidades/estados/52/municipios) | Código oficial e nome de exibição de cada município | 246 municípios |
 
 O Python 3.12 executa o ETL e o painel. Pandas e NumPy tratam e verificam os registros. Requests baixa os recursos, openpyxl lê planilhas XLSX, SQLite armazena as tabelas, Statsmodels ajusta a regressão OLS, Streamlit monta a interface e Plotly desenha os gráficos. Pytest verifica o ETL e o modelo, com o AppTest do Streamlit cobrindo a interface.
 
 ## 3. Processo de ETL
 
-1. **Extração.** O pipeline procura arquivos locais CSV/XLSX, a pasta de repasses extraídos ou o ZIP anual. Se necessário, baixa os recursos oficiais disponíveis para a competência. No XLSX, usa a primeira aba. A frota oficial não traz a competência em cada linha. Nesses arquivos, a referência é o mês indicado no recurso publicado e no nome do arquivo.
+1. **Extração.** O pipeline baixa ou reutiliza a planilha oficial de conciliação de 2025 e os arquivos mensais de frota. Para o ICMS, seleciona a competência pela coluna Referência da aba Agregado e lê a coluna ICMS. A importação manual aceita CSV/XLSX. O parser genérico de XLSX usa a primeira aba. A frota oficial não traz a competência em cada linha. Nesses arquivos, a referência é o mês indicado no recurso publicado e no nome do arquivo.
 2. **Padronização.** A leitura aceita CSV em UTF-8 ou Windows-1252 e detecta o separador. O ETL padroniza os cabeçalhos e as chaves municipais, removendo diferenças de acento, caixa e pontuação. O catálogo do IBGE fornece os códigos e a grafia final. “BOM JESUS” é associado ao código **5203500**, Bom Jesus de Goiás.
 3. **Validação.** Quando o arquivo traz uma coluna de competência, ela precisa coincidir com o mês declarado. O ICMS exige valor numérico finito e permite ajustes negativos da fonte. A frota exige contagem inteira não negativa. Uma linha inválida de um município identificado interrompe a importação. Rótulos sem correspondência são exibidos no terminal. A linha “MUNICIPIO NAO INFORMADO”, encontrada nos repasses, fica fora dos totais municipais.
-4. **Agregação.** O ETL soma eventos de ICMS bruto após eliminar repetições exatas de linhas de repasse. A frota soma apenas `QTD`; as colunas de ano de fabricação detalham a mesma contagem. A base de frota tem linhas iguais nos campos publicados e carece de um identificador de origem que comprove duplicação. Essas linhas são preservadas na soma. Em julho, removê-las por igualdade visual reduziria a frota oficial publicada de 4.938.420 para 4.492.142 veículos.
+4. **Agregação.** A planilha anual fornece um valor de ICMS por município e mês. Conferimos os 2.952 valores da aba Agregado contra a coluna ICMS Repassado do acumulado mensal de cada aba ICMS_Bolão. O valor inclui as parcelas ICMS 20% e FUNDEB ICMS 5%. Arquivos manuais de eventos passam por agregação após a remoção de linhas exatamente iguais. A frota soma apenas `QTD`; as colunas de ano de fabricação detalham a mesma contagem. A base de frota tem linhas iguais nos campos publicados e carece de um identificador de origem que comprove duplicação. Essas linhas são preservadas na soma. Em julho, removê-las por igualdade visual reduziria a frota oficial publicada de 4.938.420 para 4.492.142 veículos.
 5. **Integração e carga.** O cruzamento exige município e mês presentes nas duas fontes. A carga grava cada competência em uma transação. Reimportar julho substitui julho por inteiro, evitando entradas duplicadas. Caso uma gravação falhe, a transação mantém os dados anteriores.
 
 ## 4. Estrutura do banco SQLite
@@ -65,19 +65,24 @@ O ajuste é descritivo, e as métricas foram calculadas na amostra de ajuste. Av
 
 | Competência 2025 | Municípios | ICMS bruto (R$) | Frota publicada | Pearson | R² |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Janeiro | 246 | 504.485.562,74 | 4.837.965 | 0,929 | 0,863 |
-| Fevereiro | 246 | 555.541.192,37 | 4.853.609 | 0,929 | 0,863 |
-| Março | 246 | 608.560.890,43 | 4.869.720 | 0,929 | 0,863 |
-| Abril | 246 | 634.714.312,26 | 4.886.843 | 0,929 | 0,864 |
-| Maio | 246 | 603.548.697,59 | 4.904.638 | 0,929 | 0,864 |
+| Janeiro | 246 | 503.529.636,77 | 4.837.965 | 0,929 | 0,863 |
+| Fevereiro | 246 | 568.859.384,29 | 4.853.609 | 0,929 | 0,863 |
+| Março | 246 | 659.525.295,19 | 4.869.720 | 0,929 | 0,863 |
+| Abril | 246 | 656.844.835,59 | 4.886.843 | 0,929 | 0,864 |
+| Maio | 246 | 603.548.697,59 | 4.904.638 | 0,929 | 0,863 |
 | Junho | 246 | 617.015.186,72 | 4.920.141 | 0,930 | 0,864 |
 | Julho | 246 | 663.417.883,55 | 4.938.420 | 0,930 | 0,864 |
+| Agosto | 246 | 649.346.017,94 | 4.956.530 | 0,930 | 0,865 |
+| Setembro | 246 | 667.343.435,13 | 4.974.291 | 0,930 | 0,865 |
+| Outubro | 246 | 656.187.318,71 | 4.992.050 | 0,926 | 0,858 |
+| Novembro | 246 | 672.547.648,21 | 5.008.825 | 0,930 | 0,865 |
+| Dezembro | 246 | 695.367.863,86 | 5.028.613 | 0,930 | 0,865 |
 
 Em julho, a equação arredondada foi **Ŷ = 1.335.612,92 + 67,8065 × X**. O modelo cobriu frotas entre **468 e 1.392.726 veículos**. O **MAE foi de R$ 1.126.489,10** e o **RMSE foi de R$ 2.558.891,33**. A diferença entre essas métricas indica que desvios maiores pesam no ajuste. Ainda que a frota e os repasses tenham forte associação linear, uma estimativa pontual deve ser interpretada levando em conta essa magnitude de erro.
 
 ## 7. Limitações e conclusão
 
-- De agosto a dezembro de 2025, o ZIP analisado contém campos de IPVA e omite a coluna de ICMS bruto. Esses meses ficaram fora da série integrada. É possível importá-los quando houver um arquivo oficial com o indicador e a competência correspondentes.
+- O ZIP anterior contém apenas IPVA de agosto a dezembro. A atualização usa a conciliação oficial para todo o ano. Janeiro a abril têm totais revisados em relação ao ZIP. Maio a julho mantêm os mesmos totais municipais agregados.
 - A análise usa frota registrada ativa e inativa e ICMS bruto em reais nominais. O significado dos indicadores precisa ser mantido ao adicionar fontes.
 - População, atividade econômica e critérios de repartição podem influenciar a associação. Municípios muito grandes podem exercer forte influência na reta. A observação de Pearson elevado não estabelece causalidade.
 - A análise compara municípios dentro de cada mês. O simulador descreve essa relação na amostra e tem finalidade acadêmica.
@@ -85,6 +90,8 @@ Em julho, a equação arredondada foi **Ŷ = 1.335.612,92 + 67,8065 × X**. O mo
 A base integrada responde à pergunta de negócio no período estudado: municípios com frotas maiores tendem a receber repasses brutos maiores. A série, o gráfico de dispersão e os erros do ajuste ajudam a mostrar onde essa tendência funciona como descrição e onde as estimativas se afastam dos valores observados.
 
 ## 8. Como reproduzir e validar
+
+O código e os documentos ficam no [GitHub](https://github.com/Abnerrum/inteligencia-fiscal-goias). O [painel online](https://inteligencia-fiscal-goias.onrender.com) usa a cópia validada no SQLite. Ele oferece filtros, gráficos, exportação CSV e simulador. A carga em lote é feita localmente.
 
 Execute os comandos dentro da pasta do projeto no PowerShell. Use o [README](../README.md) para reconstruir a série completa ou importar arquivos manuais.
 
@@ -98,7 +105,7 @@ if (-not (Test-Path ..\.venv\Scripts\python.exe)) { python -m venv ..\.venv }
 
 O painel oferece o mesmo lote em **Importação de dados → Puxar todos os dados**. O resumo mostra os meses importados, os municípios cruzados e o motivo de cada falha.
 
-A validação no Windows incluiu testes automatizados, importação de sete competências oficiais, checagem de integridade do SQLite e inicialização do Streamlit. Os testes verificam CSV e XLSX, rejeição de mês incompatível, reimportação sem duplicação, leitura do banco legado, regressão em uma relação conhecida, dados degenerados, filtros, extrapolação no simulador e acionamento da importação em lote. Os dados artificiais dos testes ficam em bancos temporários.
+A validação no Windows incluiu testes automatizados, importação das 12 competências oficiais, checagem de integridade do SQLite e inicialização do Streamlit. Os testes verificam CSV e XLSX, rejeição de mês incompatível, reimportação sem duplicação, leitura do banco legado, regressão em uma relação conhecida, dados degenerados, filtros, extrapolação no simulador e acionamento da importação em lote e leitura da aba de conciliação. Nove testes passaram. Os dados artificiais dos testes ficam em bancos temporários.
 
 ## 9. Figuras e exportação para PDF
 

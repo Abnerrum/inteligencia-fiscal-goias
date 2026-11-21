@@ -31,7 +31,9 @@ Para puxar todos os dados, abra **Importação de dados** na barra lateral e cli
 
 O lote tenta todas as competências de 2025 e os meses adicionais encontrados nos arquivos locais de repasses. Ele informa o resultado por competência e continua quando um mês falha. Para usar só os arquivos locais, marque **Usar apenas arquivos locais** no painel ou acrescente `--offline` ao comando.
 
-O ETL reutiliza os arquivos locais e baixa os recursos oficiais quando necessário. Ele pode ler o ZIP anual diretamente, sem extrair seu conteúdo no disco. Cada importação substitui apenas os registros da competência informada. Agosto a dezembro de 2025 no ZIP analisado contêm dados de IPVA e não têm o campo de ICMS bruto exigido para o cruzamento.
+Para 2025, o ETL usa a aba **Agregado** da [conciliação anual publicada pela Secretaria da Economia](https://goias.gov.br/economia/repasse-aos-municipios/) e as 12 bases mensais de frota do DETRAN-GO. O ZIP anterior traz apenas IPVA de agosto a dezembro. A planilha anual cobre ICMS em todos os meses e também revisa os valores de janeiro a abril em relação ao ZIP. Cada importação substitui apenas os registros da competência informada.
+
+Para reconstruir o ano inteiro offline, guarde a planilha anual como `data/raw/conciliacao_2025.xlsx`, os 12 CSVs de frota como `frota_AAAAMM.csv` e o catálogo do IBGE como `municipios_go.json`. Então rode `..\.venv\Scripts\python.exe -m src.pipeline --todos --offline`. O resumo esperado é **12 competências importadas e 0 não importadas**.
 
 ### Importação manual de CSV ou XLSX
 
@@ -43,7 +45,7 @@ O ETL reutiliza os arquivos locais e baixa os recursos oficiais quando necessár
 ..\.venv\Scripts\python.exe -m src.pipeline --periodo 2025-07 --icms '.\data\raw\icms_202507.csv' --frota '.\data\raw\frota_202507.xlsx'
 ```
 
-Você pode omitir os caminhos se os arquivos estiverem em `data/raw/` com nomes `icms_AAAAMM` e `frota_AAAAMM` e extensão `.csv` ou `.xlsx`. Use `--offline` para impedir downloads.
+Você pode omitir o caminho da frota se o arquivo estiver em `data/raw/` com nome `frota_AAAAMM.csv` ou `.xlsx`. Use `--icms` para substituir explicitamente a planilha anual em um mês. Em modo offline, sem a planilha anual, o ETL também procura `icms_AAAAMM.csv`, `.xlsx` ou o CSV do ZIP. Use `--offline` para impedir downloads.
 
 ## Usar o painel
 
@@ -70,8 +72,8 @@ Você pode omitir os caminhos se os arquivos estiverem em `data/raw/` com nomes 
 
 ## Publicação no Render
 
-O `render.yaml` descreve o serviço gratuito em Python. A variável `FISCAL_PUBLICADO=1` ativa o modo público, que consulta `data/demonstracao.sqlite3`, uma cópia da base oficial consolidada de janeiro a julho de 2025. Nesse modo ficam disponíveis os filtros, os gráficos, o simulador e a exportação CSV. A carga de dados continua disponível na instalação local.
+O `render.yaml` descreve o serviço gratuito em Python. A variável `FISCAL_PUBLICADO=1` ativa o modo público, que consulta `data/demonstracao.sqlite3`, uma cópia da base oficial consolidada de janeiro a dezembro de 2025. Nesse modo ficam disponíveis os filtros, os gráficos, o simulador e a exportação CSV. A carga de dados continua disponível na instalação local.
 
 O banco de trabalho e os downloads brutos ficam fora do Git. O repositório inclui a cópia consolidada para o painel público abrir com dados mesmo quando as fontes de download estiverem indisponíveis.
 
-Leia o [relatório técnico](docs/relatorio_tecnico.md) para interpretar os resultados e preparar a apresentação.
+Abra o [painel publicado](https://inteligencia-fiscal-goias.onrender.com) ou baixe o [relatório técnico em Word](docs/relatorio_tecnico.docx). O [relatório em Markdown](docs/relatorio_tecnico.md) acompanha a versão do código.

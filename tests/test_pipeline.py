@@ -52,3 +52,21 @@ def test_legacy_database_is_readable(tmp_path, monkeypatch):
         connection.execute("CREATE TABLE indicadores (periodo, municipio, icms, frota)")
         connection.execute("INSERT INTO indicadores VALUES ('2025-07','GOIANIA',100,10)")
     assert load_database().iloc[0].municipio == "GOIANIA"
+
+
+def test_reconciliation_selects_month_and_icms(tmp_path):
+    workbook = tmp_path / "conciliacao.xlsx"
+    cities = [f"Município {number}" for number in range(246)]
+    frame = pd.DataFrame({
+        "Município": cities * 2,
+        "Referência": [pd.Timestamp("2025-08-01")] * 246 + [pd.Timestamp("2025-09-01")] * 246,
+        "ICMS": [120] * 246 + [220] * 246,
+        "IPVA": [999] * 492,
+    })
+    frame.to_excel(workbook, sheet_name="Agregado", startrow=3, index=False)
+
+    result = pipeline.read_reconciliation(workbook, "2025-08")
+    assert len(result) == 246
+    assert result.VALOR_BRUTO_ICMS.eq(120).all()
+    with pytest.raises(ValueError, match="246 municípios"):
+        pipeline.read_reconciliation(workbook, "2025-10")

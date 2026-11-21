@@ -20,6 +20,7 @@ MONTH = "2025-07"
 PORTAL = "https://dadosabertos.go.gov.br"
 IBGE = "https://servicodados.ibge.gov.br/api/v1/localidades/estados/52/municipios"
 ICMS_2025 = f"{PORTAL}/dataset/cd82f643-f203-41d9-9542-9250df93cd14/resource/2b247d3c-0299-4b50-a7a9-2040f1cf9099/download/repasses_municipios_ano_2025.zip"
+CONCILIACAO_2025 = "https://goias.gov.br/economia/wp-content/uploads/sites/45/2026/05/Conciliacao_das_Distribuicoes-2025.xlsx"
 MUNICIPAL_ALIASES = {"BOM_JESUS": "BOM_JESUS_DE_GOIAS"}
 FROTA_IDS = {
     "202501": "36276936-a3c1-4969-a5bb-e1a1af4edf3f",
@@ -30,6 +31,7 @@ FROTA_IDS = {
     "202506": "bf411323-a8d1-4f4b-b778-10579e42a02f",
     "202507": "c1bef0cc-f624-4576-9cc8-00ef5b057c5a",
     "202508": "0e69dc91-de3c-465c-8ec8-2bcb1b9d95fc",
+    "202509": "fab8852d-b450-4c08-ab44-e64958718c23",
     "202510": "878c7c6d-995b-4674-a228-b85627b0f8df",
     "202511": "e0168448-8f70-48c0-9859-1fc29ac489d7",
     "202512": "0037a7ef-35e4-4f34-bcc9-8c7713db7ed5",
@@ -107,10 +109,30 @@ def load_catalog(download):
     return catalog
 
 
+def read_reconciliation(workbook, month):
+    frame = pd.read_excel(workbook, sheet_name="Agregado", header=3)
+    frame.columns = frame.columns.map(clean_key)
+    expected = {"REFERENCIA", "MUNICIPIO", "ICMS"}
+    if not expected.issubset(frame.columns):
+        raise ValueError("A aba Agregado precisa conter Referência, Município e ICMS.")
+    dates = pd.to_datetime(frame["REFERENCIA"], errors="coerce")
+    records = frame.loc[dates.dt.strftime("%Y-%m").eq(month), ["MUNICIPIO", "ICMS"]]
+    cities = records.MUNICIPIO.map(clean_key)
+    if len(records) != 246 or cities.nunique() != 246 or cities.eq("").any():
+        raise ValueError(f"Conciliação oficial de {month} deve ter 246 municípios distintos.")
+    return records.rename(columns={"ICMS": "VALOR_BRUTO_ICMS"})
+
+
 def get_table(kind, month, explicit, download):
     stamp = month.replace("-", "")
     if explicit:
         return read_table(explicit), str(explicit)
+    if kind == "icms" and month.startswith("2025-"):
+        workbook = RAW / "conciliacao_2025.xlsx"
+        if not workbook.exists() and download:
+            download_file(workbook, CONCILIACAO_2025)
+        if workbook.exists():
+            return read_reconciliation(workbook, month), f"{CONCILIACAO_2025}#Agregado"
     for suffix in (".csv", ".xlsx"):
         path = RAW / f"{kind}_{stamp}{suffix}"
         if path.exists():
@@ -176,6 +198,8 @@ def build_database(icms_file=None, frota_file=None, download=True, *, month=MONT
     b, source_b = get_table("frota", month, frota_file, download)
     frota = prepare_month(b, catalog, month, "frota")
     joined = icms.merge(frota, on="codigo_ibge", validate="one_to_one")
+    if source_a == f"{CONCILIACAO_2025}#Agregado" and len(joined) != 246:
+        raise ValueError(f"Conciliação incompleta em {month}: {len(joined)} de 246 municípios cruzados.")
     if len(joined) < 3:
         raise ValueError(f"Cruzamento insuficiente: {len(joined)} municípios em {month}.")
     save_period(month, catalog, icms, frota, (source_a, source_b), **({"db_path": db_path} if db_path else {}))
@@ -189,7 +213,8 @@ IMPORT_ERRORS = (ValueError, OSError, sqlite3.Error, zipfile.BadZipFile)
 
 def available_periods(download=True):
     """Lista competências do catálogo de 2025 e dos arquivos de repasses locais."""
-    stamps = {f"2025{month:02d}" for month in range(1, 13)} if download else set()
+    has_annual_source = download or (RAW / "conciliacao_2025.xlsx").exists()
+    stamps = {f"2025{month:02d}" for month in range(1, 13)} if has_annual_source else set()
     names = [path.name for path in RAW.glob("icms_*")]
     names.extend(path.name for path in RAW.glob("repasses*/RepassesMunicipios*.csv"))
     for path in RAW.glob("repasses_municipios_ano_*.zip"):
