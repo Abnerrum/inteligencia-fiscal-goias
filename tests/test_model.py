@@ -1,7 +1,7 @@
 ﻿import pandas as pd
 import pytest
 
-from src.model import fit_linear, interpret_pearson, predict
+from src.model import fit_linear, interpret_pearson, predict, project_trend
 
 
 def test_known_linear_relationship():
@@ -20,3 +20,14 @@ def test_known_linear_relationship():
 def test_rejects_degenerate_samples(x, y):
     with pytest.raises(ValueError):
         fit_linear(pd.DataFrame({"frota": x, "icms": y}))
+
+
+def test_trend_projection():
+    assert project_trend([10, 12, 14, 16], steps=2) == pytest.approx([18, 20])
+    assert project_trend([99, 12, 14, 16], steps=2, skip=1) == pytest.approx([18, 20])
+
+
+@pytest.mark.parametrize("values", [[1, 2], [1, float("nan"), 3, 4]])
+def test_trend_rejects_short_or_gapped_series(values):
+    with pytest.raises(ValueError):
+        project_trend(values)

@@ -26,6 +26,15 @@ def predict(result, x_value):
     return result["intercepto"] + result["inclinacao"] * float(x_value)
 
 
+def project_trend(values, steps=12, skip=0):
+    """Projeta uma série mensal pela reta de tendência, ignorando os primeiros `skip` meses."""
+    y = np.asarray(values, dtype=float)
+    if not np.isfinite(y).all() or len(y) - skip < 3:
+        raise ValueError("A projeção requer pelo menos três meses seguidos e sem lacunas.")
+    slope, intercept = np.polyfit(np.arange(skip, len(y)), y[skip:], 1)
+    return intercept + slope * np.arange(len(y), len(y) + steps)
+
+
 def interpret_pearson(r):
     magnitude = abs(r)
     if magnitude == 0:

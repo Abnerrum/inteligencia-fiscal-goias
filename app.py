@@ -4,10 +4,11 @@ import sqlite3
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from src.database import ROOT, load_database
-from src.model import fit_linear, interpret_pearson, predict
+from src.model import fit_linear, interpret_pearson, predict, project_trend
 from src.pipeline import IMPORT_ERRORS, import_all
 
 LABELS = {"municipio": "Município", "frota": "Veículos", "icms": "ICMS bruto (R$)", "periodo": "Competência"}
@@ -109,14 +110,14 @@ periods = sorted(data.periodo.unique(), reverse=True)
 with st.sidebar:
     st.header("Filtros")
     period = st.selectbox("Competência", periods)
-    sample = data[data.periodo.eq(period)]
+    sample = data[data.periodo.eq(period)] # type: ignore
     cities = st.multiselect("Municípios", sorted(sample.municipio.unique()), key=f"cities_{period}")
     st.caption("A regressão usa todos os municípios cruzados da competência selecionada.")
 
 selected = sample[sample.municipio.isin(cities)] if cities else sample
 history = data[data.municipio.isin(cities)] if cities else data
 
-overview, analysis, records = st.tabs(["Visão geral", "Regressão e simulador", "Registros"])
+overview, analysis, records, forecast = st.tabs(["Visão geral", "Regressão e simulador", "Registros", "Previsões"])
 with overview:
     a, b, c = st.columns(3)
     a.metric("Municípios no recorte", len(selected))
@@ -183,5 +184,50 @@ with records:
     })
     st.download_button("Baixar CSV do recorte", selected.to_csv(index=False).encode("utf-8-sig"),
                        f"indicadores_{period}.csv", "text/csv")
+
+with forecast:
+    st.subheader("Previsões para os próximos 12 meses")
+    scope = "os municípios selecionados" if cities else "o total do estado"
+    st.caption(f"Projeção calculada para {scope} com toda a série importada. O filtro de competência não altera este gráfico.")
+    try:
+        if len(monthly) < 6 or monthly.municipios.nunique(dropna=False) != 1:
+            raise ValueError("A projeção requer pelo menos seis meses seguidos com os mesmos municípios.")
+        # Mesmos cenários do relatório: a tendência recente descarta os dois primeiros meses.
+        recent = f"Tendência desde {monthly.periodo.iloc[2]}"
+        scenarios = {
+            "frota": [("Tendência (OLS)", project_trend(monthly.frota), "#5aa9ff", "dash")],
+            "icms": [
+                ("Estável", [monthly.icms.iloc[-1]] * 12, "#5aa9ff", "dash"),
+                (recent, project_trend(monthly.icms, skip=2), "#35cdb5", "dashdot"),
+                ("Tendência da série completa", project_trend(monthly.icms), "#f6ad55", "dot"),
+            ],
+        }
+    except ValueError as exc:
+        st.info(str(exc))
+    else:
+        last = monthly.periodo.iloc[-1]
+        future = pd.period_range(pd.Period(last, freq="M") + 1, periods=12, freq="M").astype(str).tolist()
+        summary = []
+        for field in ("frota", "icms"):
+            fig = go.Figure(go.Scatter(x=monthly.periodo, y=monthly[field], name="Observado", mode="lines+markers",
+                                       line={"color": "#e8fbfa", "width": 2}))
+            for name, values, color, dash in scenarios[field]:
+                # O primeiro ponto repete o último observado para ligar as linhas.
+                fig.add_scatter(x=[last, *future], y=[monthly[field].iloc[-1], *values], name=name,
+                                mode="lines", line={"color": color, "width": 2, "dash": dash})
+                summary.append({"Indicador": LABELS[field], "Cenário": name,
+                                f"Valor em {future[-1]}": br(values[-1]),
+                                "Soma dos 12 meses": br(sum(values)) if field == "icms" else "—"})
+            fig.add_vrect(x0=last, x1=future[-1], fillcolor="#ffffff", opacity=0.06, line_width=0, layer="below")
+            fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                              title=LABELS[field], hovermode="x unified", separators=",.",
+                              legend={"orientation": "h", "y": -0.2})
+            fig.update_xaxes(type="category")
+            fig.update_yaxes(tickformat=",.0f", hoverformat=",.0f")
+            st.plotly_chart(fig, use_container_width=True, key=f"forecast_{field}")
+        st.dataframe(pd.DataFrame(summary), hide_index=True)
+        st.caption("A área sombreada é a projeção. Os eixos verticais não começam em zero. Uma série de um ano não separa "
+                   "sazonalidade de tendência, por isso o ICMS aparece em cenários e o da série completa é um limite alto. "
+                   "Valores nominais, para fins acadêmicos, sem caráter de previsão oficial.")
 
 st.caption("Fontes oficiais · Economia de Goiás, DETRAN-GO e IBGE")

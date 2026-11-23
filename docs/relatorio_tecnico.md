@@ -80,6 +80,25 @@ O ajuste é descritivo, e as métricas foram calculadas na amostra de ajuste. Av
 
 Em julho, a equação arredondada foi **Ŷ = 1.335.612,92 + 67,8065 × X**. O modelo cobriu frotas entre **468 e 1.392.726 veículos**. O **MAE foi de R$ 1.126.489,10** e o **RMSE foi de R$ 2.558.891,33**. A diferença entre essas métricas indica que desvios maiores pesam no ajuste. Ainda que a frota e os repasses tenham forte associação linear, uma estimativa pontual deve ser interpretada levando em conta essa magnitude de erro.
 
+### 6.1 Previsões para 2026
+
+A projeção usa os totais estaduais das 12 competências de 2025. A frota segue uma reta de tendência OLS. O ICMS aparece em três cenários, pois a série é curta e mais instável: repetição do valor de dezembro, tendência de março a dezembro e tendência de janeiro a dezembro.
+
+![Dois gráficos de linha com valores de 2025 e projeções de 2026 para frota e ICMS bruto em Goiás.](figuras/previsao_2026.png)
+
+**Figura 4 · Observado em 2025 e projeção para 2026 da frota e do ICMS bruto estadual. A área sombreada indica a projeção. Os eixos verticais não começam em zero.**
+
+| Indicador | Projeção | Comparação com 2025 |
+| --- | ---: | ---: |
+| Frota em dezembro de 2026 | 5,23 milhões | +4,1% sobre dez/2025 |
+| ICMS 2026, estável | R$ 8,34 bilhões | +9,6% |
+| ICMS 2026, tendência mar–dez | R$ 8,52 bilhões | +11,8% |
+| ICMS 2026, tendência jan–dez | R$ 9,25 bilhões | +21,5% |
+
+Para testar os métodos, o treino usou os primeiros 6, 7, 8 e 9 meses e a previsão cobriu os três meses seguintes. O erro percentual absoluto médio da reta foi 0,06% para a frota e 5,35% para o ICMS. Repetir o último mês de ICMS teve erro menor, de 3,09%. Por isso, os dois primeiros cenários de ICMS são a faixa de referência, e o terceiro é um limite alto, influenciado pelas altas de janeiro a março.
+
+Um único ano não permite separar sazonalidade de tendência, e o teste alcança apenas três meses, enquanto a projeção alcança doze. Dezembro foi o maior mês de ICMS do ano, o que pode elevar o cenário estável. A projeção não usa a regressão entre frota e ICMS, que compara municípios no mesmo mês. Os valores são nominais e têm finalidade acadêmica.
+
 ## 7. Limitações e conclusão
 
 - O ZIP anterior contém apenas IPVA de agosto a dezembro. A atualização usa a conciliação oficial para todo o ano. Janeiro a abril têm totais revisados em relação ao ZIP. Maio a julho mantêm os mesmos totais municipais agregados.
